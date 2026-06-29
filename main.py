@@ -69,9 +69,9 @@ def main() -> int:
         return 1
 
     if success:
-        log.info("✅ Task completed successfully.")
+        log.info("[SUCCESS] Task completed successfully.")
         return 0
-    log.error("❌ Task did not complete successfully. See logs/screenshots for details.")
+    log.error("[FAILED] Task did not complete successfully. See logs/screenshots for details.")
     return 1
 
 

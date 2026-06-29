@@ -85,7 +85,7 @@ class Agent:
 
             # --- perceive / think / act loop ---
             for step in range(1, self.config.max_steps + 1):
-                log.info("──────── step %d/%d ────────", step, self.config.max_steps)
+                log.info("======== step %d/%d ========", step, self.config.max_steps)
                 shot = tools.take_screenshot(label=f"step{step}")
 
                 try:

@@ -52,7 +52,7 @@ class Config:
     def load(cls) -> "Config":
         return cls(
             api_key=os.getenv("GEMINI_API_KEY", "").strip(),
-            model=os.getenv("LLM_MODEL", "gemini-2.5-flash").strip(),
+            model=os.getenv("LLM_MODEL", "gemini-2.0-flash").strip(),
             target_url=os.getenv(
                 "TARGET_URL",
                 "https://ui.shadcn.com/docs/forms/react-hook-form",

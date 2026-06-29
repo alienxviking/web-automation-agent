@@ -40,6 +40,13 @@ def get_logger(log_dir: str = "logs") -> logging.Logger:
 
     logger.setLevel(logging.DEBUG)
 
+    # Make the console UTF-8 where possible so logs never crash on non-ASCII
+    # (Windows consoles default to a legacy code page like cp1252).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
     console = logging.StreamHandler(stream=sys.stdout)
     console.setLevel(logging.INFO)
     console.setFormatter(_ConsoleFormatter("%(asctime)s | %(levelname)-7s | %(message)s", "%H:%M:%S"))
