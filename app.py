@@ -212,7 +212,7 @@ _PAGE = """
     <label>Description value (optional)</label>
     <input id="form_description" type="text" placeholder="leave blank = auto">
 
-    <label class="check"><input id="headed" type="checkbox"> Show the real browser window while running</label>
+    <label class="check"><input id="headed" type="checkbox" checked> Open a real browser window (your Chrome/Edge) while running</label>
 
     <button id="runBtn" onclick="startRun()">Run agent</button>
     <div class="status">Status: <span id="badge" class="badge idle">idle</span></div>

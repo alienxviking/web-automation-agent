@@ -147,7 +147,8 @@ All settings live in `.env` (see [`.env.example`](.env.example)):
 | `TARGET_URL` | Page to operate on |
 | `TASK` | Natural-language goal for the agent |
 | `FORM_NAME` / `FORM_DESCRIPTION` | Optional fixed values (blank = agent invents them) |
-| `HEADED` | `true` shows the browser, `false` runs headless |
+| `HEADED` | `true` opens a visible browser window, `false` runs headless |
+| `BROWSER_CHANNEL` | `auto` uses your installed Chrome → Edge → bundled Chromium; or force `chrome` / `msedge` / `chromium` |
 | `VIEWPORT_WIDTH` / `VIEWPORT_HEIGHT` | Browser size; clicks use this pixel space |
 | `MAX_STEPS` | Safety cap on agent steps |
 | `SCREENSHOT_DIR` | Where screenshots are saved |

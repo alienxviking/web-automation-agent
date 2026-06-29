@@ -87,6 +87,7 @@ class Agent:
             viewport_width=self.config.viewport_width,
             viewport_height=self.config.viewport_height,
             screenshot_dir=self.config.screenshot_dir,
+            browser_channel=self.config.browser_channel,
         ) as tools:
             # --- fixed opening moves: open + navigate ---
             tools.open_browser()

@@ -49,11 +49,13 @@ class BrowserTools:
         viewport_width: int = 1280,
         viewport_height: int = 800,
         screenshot_dir: str = "screenshots",
+        browser_channel: str = "auto",
     ) -> None:
         self.headed = headed
         self.viewport_width = viewport_width
         self.viewport_height = viewport_height
         self.screenshot_dir = screenshot_dir
+        self.browser_channel = (browser_channel or "auto").lower()
 
         self._pw: Optional[Playwright] = None
         self._browser: Optional[Browser] = None
@@ -78,22 +80,55 @@ class BrowserTools:
 
     # -- tool: open_browser ---------------------------------------------------
 
+    def _channels_to_try(self) -> list:
+        """Decide which browser channels to attempt, in order.
+
+        "auto" prefers the user's real installed Chrome, then Edge, then the
+        bundled Chromium. A specific channel ("chrome"/"msedge") still falls back
+        to bundled Chromium if that browser isn't installed. "" / "chromium" uses
+        only the bundled engine.
+        """
+        if self.browser_channel in ("", "chromium", "bundled"):
+            return [None]
+        if self.browser_channel == "auto":
+            return ["chrome", "msedge", None]
+        return [self.browser_channel, None]
+
     def open_browser(self) -> str:
-        """Launch a Chromium instance and open a single page/tab."""
+        """Launch a browser and open a single page/tab.
+
+        Prefers the user's installed Chrome/Edge so real sites (e.g. YouTube)
+        behave exactly as they do for a normal user, and opens a visible window
+        when ``headed`` is true.
+        """
         try:
             self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=not self.headed)
-            context = self._browser.new_context(
-                viewport={"width": self.viewport_width, "height": self.viewport_height},
-                device_scale_factor=1,  # keep screenshot pixels == click coordinates
-            )
-            self._page = context.new_page()
-            self._page.set_default_timeout(15_000)
-            log.info("open_browser -> launched Chromium (headed=%s, %dx%d)",
-                     self.headed, self.viewport_width, self.viewport_height)
-            return "Browser opened."
-        except Exception as exc:  # noqa: BLE001 - surface any launch failure cleanly
-            raise BrowserError(f"Failed to open browser: {exc}") from exc
+        except Exception as exc:  # noqa: BLE001
+            raise BrowserError(f"Failed to start Playwright: {exc}") from exc
+
+        last_exc = None
+        for channel in self._channels_to_try():
+            try:
+                kwargs = {"headless": not self.headed}
+                if channel:
+                    kwargs["channel"] = channel
+                self._browser = self._pw.chromium.launch(**kwargs)
+                context = self._browser.new_context(
+                    viewport={"width": self.viewport_width, "height": self.viewport_height},
+                    device_scale_factor=1,  # keep screenshot pixels == click coordinates
+                )
+                self._page = context.new_page()
+                self._page.set_default_timeout(15_000)
+                used = channel or "chromium (bundled)"
+                log.info("open_browser -> launched %s (headed=%s, %dx%d)",
+                         used, self.headed, self.viewport_width, self.viewport_height)
+                return f"Browser opened ({used})."
+            except Exception as exc:  # noqa: BLE001 - try the next channel
+                last_exc = exc
+                log.warning("Could not launch '%s' (%s) — trying next option.",
+                            channel or "bundled chromium", exc)
+
+        raise BrowserError(f"Failed to open any browser. Last error: {last_exc}")
 
     # -- tool: navigate_to_url ------------------------------------------------
 

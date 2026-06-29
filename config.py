@@ -43,6 +43,7 @@ class Config:
     form_name: str
     form_description: str
     headed: bool
+    browser_channel: str
     viewport_width: int
     viewport_height: int
     max_steps: int
@@ -67,6 +68,7 @@ class Config:
             form_name=os.getenv("FORM_NAME", "").strip(),
             form_description=os.getenv("FORM_DESCRIPTION", "").strip(),
             headed=_get_bool("HEADED", True),
+            browser_channel=os.getenv("BROWSER_CHANNEL", "auto").strip().lower(),
             viewport_width=_get_int("VIEWPORT_WIDTH", 1280),
             viewport_height=_get_int("VIEWPORT_HEIGHT", 800),
             max_steps=_get_int("MAX_STEPS", 18),
