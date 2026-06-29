@@ -134,6 +134,7 @@ class BrowserTools:
         try:
             self.page.mouse.move(x, y)
             self.page.mouse.click(x, y)
+            self._settle()
             time.sleep(0.3)
             log.info("click_on_screen -> (%d, %d)", x, y)
             return f"Clicked at ({x}, {y})"
@@ -171,11 +172,57 @@ class BrowserTools:
                 self.page.keyboard.type(text, delay=20)
             if press:
                 self.page.keyboard.press(press)
+                self._settle()  # Enter may submit a search / navigate
             time.sleep(0.2)
             log.info("send_keys -> text=%r press=%r clear_first=%s", text, press, clear_first)
             return f"Sent keys (text={text!r}, press={press!r})"
         except Exception as exc:  # noqa: BLE001
             raise BrowserError(f"Failed to send keys: {exc}") from exc
+
+    # -- perception helper: list interactive elements ------------------------
+
+    _ELEMENTS_JS = """
+    () => {
+      const selector = 'a,button,input,textarea,select,[role=button],[role=link],' +
+        '[role=textbox],[role=searchbox],[role=combobox],[role=menuitem],[role=tab],' +
+        '[contenteditable=""],[contenteditable=true],[onclick]';
+      const seen = new Set();
+      const out = [];
+      for (const el of document.querySelectorAll(selector)) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 6 || r.height < 6) continue;
+        // keep only elements whose centre is inside the viewport
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) continue;
+        const st = window.getComputedStyle(el);
+        if (st.visibility === 'hidden' || st.display === 'none' || st.opacity === '0') continue;
+        let label = (el.getAttribute('aria-label') || el.getAttribute('placeholder') ||
+          (el.innerText || '').trim() || el.value || el.getAttribute('title') ||
+          el.getAttribute('name') || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
+        const tag = el.tagName.toLowerCase();
+        const type = (el.getAttribute('type') || '').toLowerCase();
+        const key = tag + '|' + type + '|' + label + '|' + Math.round(cx) + ',' + Math.round(cy);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ tag, type, label, x: Math.round(cx), y: Math.round(cy) });
+      }
+      return out;
+    }
+    """
+
+    def get_interactive_elements(self, limit: int = 45) -> list:
+        """Return visible, in-viewport interactive elements with real centres.
+
+        Each item is {tag, type, label, x, y}. Giving these to the model — with
+        true click coordinates — makes element selection far more reliable than
+        asking it to guess pixels from the screenshot alone.
+        """
+        try:
+            elements = self.page.evaluate(self._ELEMENTS_JS)
+        except Exception as exc:  # noqa: BLE001 - perception must never crash the loop
+            log.warning("Could not read interactive elements: %s", exc)
+            return []
+        return elements[:limit]
 
     # -- tool: scroll ---------------------------------------------------------
 
@@ -190,6 +237,13 @@ class BrowserTools:
             raise BrowserError(f"Failed to scroll: {exc}") from exc
 
     # -- helpers --------------------------------------------------------------
+
+    def _settle(self) -> None:
+        """Best-effort wait for the page to finish reacting to an action."""
+        try:
+            self.page.wait_for_load_state("domcontentloaded", timeout=4_000)
+        except PlaywrightTimeoutError:
+            pass
 
     def _guard_coords(self, x: int, y: int) -> None:
         if not (0 <= x <= self.viewport_width and 0 <= y <= self.viewport_height):

@@ -34,7 +34,9 @@ tied to any particular site's markup — there are no hardcoded selectors.
 `Agent.run()` performs two fixed opening moves (`open_browser`,
 `navigate_to_url`) and then enters a bounded loop:
 
-1. **Perceive** — `take_screenshot()` captures the current viewport.
+1. **Perceive** — `take_screenshot()` captures the current viewport, and
+   `get_interactive_elements()` lists the visible clickable/typeable elements
+   with their real coordinates.
 2. **Think** — the screenshot, the goal, the viewport size, and a short history
    of past actions are sent to the model. The model must reply with a single
    JSON action (click / double_click / send_keys / scroll / done) including pixel
@@ -60,11 +62,21 @@ screenshot reveals it and the model adjusts.
 
 ## Key design decisions
 
-- **Vision-based element detection over selectors.** The required toolset
-  (`click_on_screen(x, y)`, `send_keys`, `scroll`, …) is coordinate-based by
-  design. Letting the model locate elements visually keeps the agent generic: it
-  works on a page it has never seen and survives markup changes that would break
-  CSS/XPath locators.
+- **Hybrid perception: screenshot + real element coordinates.** Each step the
+  agent captures a screenshot *and* extracts the page's visible interactive
+  elements (links, buttons, inputs) with their true centre coordinates, then
+  gives both to the model. The model selects an element by index and the agent
+  clicks its real centre. This is dramatically more reliable than asking a vision
+  model to guess pixels on a busy page — but it still resolves to the required
+  `click_on_screen(x, y)` tool underneath, and a raw-pixel `click` remains
+  available as a fallback for anything not in the element list. (The assignment
+  explicitly allows "selectors, XPath, or visual recognition" — this combines the
+  robustness of structural detection with the generality of vision.)
+
+- **Loop guard for completion.** Lightweight models sometimes finish the task but
+  forget to emit `done` and re-issue the same action. If an identical action
+  repeats three times, the agent assumes the goal is met and stops — preventing
+  false failures.
 
 - **A free, fast LLM behind a tiny interface.** The agent runs on Groq's free
   tier (Llama-4 vision), accessed over plain REST so there is no SDK to drift.

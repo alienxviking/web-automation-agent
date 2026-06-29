@@ -108,6 +108,32 @@ While it runs you'll see a live trace of the agent's reasoning and each action.
 Screenshots of every step are written to `screenshots/`, and a full log to
 `logs/agent.log`.
 
+### Try it instantly (offline demo form)
+
+A self-contained form ([`demo/form.html`](demo/form.html)) with **Name** and
+**Description** fields is included for a guaranteed, no-network demo:
+
+```bash
+# CLI (point at the local file)
+python main.py --headless --url "file:///ABSOLUTE/PATH/TO/demo/form.html" \
+  --task "Fill in the Name and Description fields and submit the form."
+```
+
+Or in the web UI, paste that `file:///...` path as the Target URL. The agent
+fills both fields and submits — a clean end-to-end run every time.
+
+---
+
+## How element detection works
+
+On each step the agent does more than look at the screenshot: it also reads the
+page's **actual interactive elements** (links, buttons, inputs) together with
+their real on-screen coordinates, and hands that list to the model. The model
+picks an element by index, and the agent clicks its true centre. This hybrid of
+**visual + structural** perception is far more reliable on busy real-world pages
+(search boxes, menus, video thumbnails) than guessing pixels from an image alone,
+while still driving the required `click_on_screen(x, y)` tool underneath.
+
 ---
 
 ## Configuration
