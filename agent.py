@@ -18,7 +18,7 @@ from typing import Any, Dict
 
 from browser_tools import BrowserError, BrowserTools
 from config import Config
-from llm import LLMError, build_llm
+from llm import LLMError, VisionLLM
 from logger import get_logger
 
 log = get_logger()
@@ -66,13 +66,7 @@ class Agent:
 
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.llm = build_llm(
-            gemini_api_key=config.api_key,
-            gemini_model=config.model,
-            groq_api_key=config.groq_api_key,
-            groq_model=config.groq_model,
-            provider_order=config.provider_order,
-        )
+        self.llm = VisionLLM(api_key=config.api_key, model=config.model)
         self.history: list[str] = []
 
     def run(self) -> bool:

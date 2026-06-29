@@ -12,22 +12,21 @@ decisions are made from pixels rather than from the page's HTML, the agent is no
 tied to any particular site's markup — there are no hardcoded selectors.
 
 ```
-        ┌──────────────────────────────────────────────────┐
-        │                      main.py                       │
-        │            (config, CLI, orchestration)            │
-        └───────────────────────┬──────────────────────────┘
-                                 │
-                        ┌────────▼─────────┐
-                        │     agent.py     │
-                        │ perceive→think→act
-                        └───┬──────────┬───┘
-                  screenshot│          │JSON decision
-                            │          │
-                  ┌─────────▼───┐  ┌───▼────────────────┐
-                  │browser_tools│  │       llm.py       │
-                  │ (Playwright)│  │ Gemini ⇄ Groq      │
-                  │             │  │ (auto-fallback)    │
-                  └─────────────┘  └────────────────────┘
+        ┌──────────────────────┐     ┌──────────────────────┐
+        │   app.py (web UI)    │     │   main.py (CLI)      │
+        │  URL + instruction   │     │  flags / .env        │
+        └──────────┬───────────┘     └──────────┬───────────┘
+                   └──────────────┬─────────────┘
+                          ┌───────▼──────────┐
+                          │     agent.py     │
+                          │ perceive→think→act
+                          └───┬──────────┬───┘
+                    screenshot│          │JSON decision
+                              │          │
+                    ┌─────────▼───┐  ┌───▼──────────┐
+                    │browser_tools│  │    llm.py    │
+                    │ (Playwright)│  │  (Groq REST) │
+                    └─────────────┘  └──────────────┘
 ```
 
 ## The control loop
@@ -54,9 +53,10 @@ screenshot reveals it and the model adjusts.
 | `config.py` | Loads and validates all settings from the environment. One immutable `Config` object flows through the app, so nothing is hardcoded. |
 | `logger.py` | A single shared logger writing a colourised console trace and a plain-text log file. |
 | `browser_tools.py` | A managed Playwright session exposing only the allowed actions. Each tool is small, validates its inputs, and raises a typed `BrowserError` on failure. |
-| `llm.py` | Vision-LLM layer. Each provider (Gemini, Groq) is a small class with one `attempt()` method; `VisionLLM` tries them in priority order and falls back across providers. Both force JSON output for reliable parsing. |
+| `llm.py` | A minimal Groq REST client. Sends the screenshot + prompt and returns parsed JSON, forcing a JSON response format for reliability and retrying transient failures (429/5xx) with backoff. |
 | `agent.py` | The orchestrator that wires perception, reasoning, and action together. |
 | `main.py` | CLI parsing, config loading, top-level error handling, exit codes. |
+| `app.py` | Flask web interface: a form for the target URL + instruction, which runs the agent in a background thread and streams its log and screenshots back to the page via polling. |
 
 ## Key design decisions
 
@@ -66,13 +66,12 @@ screenshot reveals it and the model adjusts.
   works on a page it has never seen and survives markup changes that would break
   CSS/XPath locators.
 
-- **Free, swappable LLMs with automatic fallback.** Two free providers are
-  supported — Google Gemini and Groq (Llama-4 vision) — both over plain REST so
-  there is no SDK to drift. Each provider is a tiny class; `VisionLLM` tries them
-  in `PROVIDER_ORDER` and, on a rate limit or error, falls through to the next
-  provider *immediately* rather than waiting. So an exhausted free-tier quota on
-  one provider transparently hands off to the other. Adding a third provider is a
-  ~30-line class plus one entry in the catalogue.
+- **A free, fast LLM behind a tiny interface.** The agent runs on Groq's free
+  tier (Llama-4 vision), accessed over plain REST so there is no SDK to drift.
+  The model name is configurable, and `VisionLLM` is a single small class —
+  pointing it at a different provider is a localised change. Transient rate limits
+  (Groq's free tier is tokens-per-minute capped) are absorbed by retry-with-backoff
+  that honours the server's suggested delay.
 
 - **One action per turn.** This makes the agent self-correcting and the trace
   easy to follow during a demo, at the cost of a few extra model calls.
