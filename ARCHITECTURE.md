@@ -23,10 +23,11 @@ tied to any particular site's markup — there are no hardcoded selectors.
                         └───┬──────────┬───┘
                   screenshot│          │JSON decision
                             │          │
-                  ┌─────────▼───┐  ┌───▼──────────┐
-                  │browser_tools│  │    llm.py    │
-                  │ (Playwright)│  │ (Gemini REST)│
-                  └─────────────┘  └──────────────┘
+                  ┌─────────▼───┐  ┌───▼────────────────┐
+                  │browser_tools│  │       llm.py       │
+                  │ (Playwright)│  │ Gemini ⇄ Groq      │
+                  │             │  │ (auto-fallback)    │
+                  └─────────────┘  └────────────────────┘
 ```
 
 ## The control loop
@@ -53,7 +54,7 @@ screenshot reveals it and the model adjusts.
 | `config.py` | Loads and validates all settings from the environment. One immutable `Config` object flows through the app, so nothing is hardcoded. |
 | `logger.py` | A single shared logger writing a colourised console trace and a plain-text log file. |
 | `browser_tools.py` | A managed Playwright session exposing only the allowed actions. Each tool is small, validates its inputs, and raises a typed `BrowserError` on failure. |
-| `llm.py` | A minimal Gemini REST client. Sends the screenshot + prompt and returns parsed JSON. Forcing a JSON response MIME type keeps output reliable. |
+| `llm.py` | Vision-LLM layer. Each provider (Gemini, Groq) is a small class with one `attempt()` method; `VisionLLM` tries them in priority order and falls back across providers. Both force JSON output for reliable parsing. |
 | `agent.py` | The orchestrator that wires perception, reasoning, and action together. |
 | `main.py` | CLI parsing, config loading, top-level error handling, exit codes. |
 
@@ -65,10 +66,13 @@ screenshot reveals it and the model adjusts.
   works on a page it has never seen and survives markup changes that would break
   CSS/XPath locators.
 
-- **A free, swappable LLM behind a tiny interface.** The default is Google
-  Gemini's free tier, accessed over plain REST so there is no SDK to drift. The
-  model name is configurable, and `VisionLLM` is a single small class — pointing
-  it at a different provider is a localised change.
+- **Free, swappable LLMs with automatic fallback.** Two free providers are
+  supported — Google Gemini and Groq (Llama-4 vision) — both over plain REST so
+  there is no SDK to drift. Each provider is a tiny class; `VisionLLM` tries them
+  in `PROVIDER_ORDER` and, on a rate limit or error, falls through to the next
+  provider *immediately* rather than waiting. So an exhausted free-tier quota on
+  one provider transparently hands off to the other. Adding a third provider is a
+  ~30-line class plus one entry in the catalogue.
 
 - **One action per turn.** This makes the agent self-correcting and the trace
   easy to follow during a demo, at the cost of a few extra model calls.

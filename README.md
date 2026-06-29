@@ -5,9 +5,13 @@ the page, decides what to do, and fills in forms without any human clicking.
 Think of it as a tiny, self-contained version of tools like *Browser Use*.
 
 The agent navigates to a page, visually locates the form fields, and types in
-values — all driven by a **free** vision LLM (Google Gemini's free tier). It does
-**not** rely on hardcoded CSS selectors; element detection happens by looking at
-screenshots, exactly like a person would.
+values — all driven by a **free** vision LLM. It does **not** rely on hardcoded
+CSS selectors; element detection happens by looking at screenshots, exactly like
+a person would.
+
+It supports **two free providers with automatic fallback** — Google Gemini and
+Groq (Llama-4 vision). If one is rate-limited or errors, the agent instantly
+switches to the other, so a free-tier quota never stops a run.
 
 ---
 
@@ -48,8 +52,9 @@ page like a human rather than depending on fragile selectors.
 ## Requirements
 
 - Python 3.10+
-- A free Google AI Studio API key — get one in seconds at
-  <https://aistudio.google.com/apikey>
+- At least one free vision-LLM API key (set both for automatic fallback):
+  - **Gemini** — <https://aistudio.google.com/apikey>
+  - **Groq** — <https://console.groq.com/keys>
 
 ---
 
@@ -105,8 +110,11 @@ All settings live in `.env` (see [`.env.example`](.env.example)):
 
 | Variable | Purpose |
 |----------|---------|
-| `GEMINI_API_KEY` | Your free API key (required) |
-| `LLM_MODEL` | Vision model, e.g. `gemini-2.5-flash` |
+| `GEMINI_API_KEY` | Free Gemini key (at least one provider key required) |
+| `LLM_MODEL` | Gemini model, e.g. `gemini-2.0-flash` |
+| `GROQ_API_KEY` | Free Groq key (enables fallback) |
+| `GROQ_MODEL` | Groq vision model, e.g. `meta-llama/llama-4-scout-17b-16e-instruct` |
+| `PROVIDER_ORDER` | Try order + fallback chain, e.g. `gemini,groq` or `groq,gemini` |
 | `TARGET_URL` | Page to operate on |
 | `TASK` | Natural-language goal for the agent |
 | `FORM_NAME` / `FORM_DESCRIPTION` | Optional fixed values (blank = agent invents them) |
@@ -124,7 +132,7 @@ web-automation/
 ├── main.py            # entry point + CLI
 ├── agent.py           # perceive → think → act loop
 ├── browser_tools.py   # the 7 browser tools (Playwright wrapper)
-├── llm.py             # free vision-LLM client (Gemini REST)
+├── llm.py             # vision-LLM client: Gemini + Groq with auto-fallback
 ├── config.py          # environment-driven settings
 ├── logger.py          # shared console + file logging
 ├── requirements.txt
@@ -137,9 +145,12 @@ web-automation/
 
 ## Troubleshooting
 
-- **`GEMINI_API_KEY is not set`** — copy `.env.example` to `.env` and add your key.
+- **No provider key set** — copy `.env.example` to `.env` and add a Gemini
+  and/or Groq key.
 - **Browser fails to launch** — run `python -m playwright install chromium`.
 - **Agent clicks slightly off** — increase the viewport in `.env`, or try a
   stronger model (`LLM_MODEL=gemini-2.5-flash`). The agent re-screenshots every
   step, so it can self-correct over a couple of iterations.
-- **Rate limited** — the free tier has per-minute limits; wait a moment and rerun.
+- **Rate limited (429)** — set both provider keys so the agent auto-falls back;
+  it also retries with backoff. If a single provider's free quota is exhausted,
+  add the other key or wait for the quota window to reset.

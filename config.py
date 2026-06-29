@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import List
 
 from dotenv import load_dotenv
 
@@ -36,8 +37,11 @@ def _get_int(name: str, default: int) -> int:
 class Config:
     """Immutable snapshot of the agent's runtime settings."""
 
-    api_key: str
-    model: str
+    api_key: str          # Gemini API key
+    model: str            # Gemini model
+    groq_api_key: str     # Groq API key
+    groq_model: str       # Groq vision model
+    provider_order: List[str]
     target_url: str
     task: str
     form_name: str
@@ -50,9 +54,16 @@ class Config:
 
     @classmethod
     def load(cls) -> "Config":
+        order_raw = os.getenv("PROVIDER_ORDER", "gemini,groq")
+        provider_order = [p.strip().lower() for p in order_raw.split(",") if p.strip()]
         return cls(
             api_key=os.getenv("GEMINI_API_KEY", "").strip(),
             model=os.getenv("LLM_MODEL", "gemini-2.0-flash").strip(),
+            groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
+            groq_model=os.getenv(
+                "GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+            ).strip(),
+            provider_order=provider_order,
             target_url=os.getenv(
                 "TARGET_URL",
                 "https://ui.shadcn.com/docs/forms/react-hook-form",
@@ -73,10 +84,11 @@ class Config:
 
     def validate(self) -> None:
         """Fail fast with a helpful message if something essential is missing."""
-        if not self.api_key:
+        if not self.api_key and not self.groq_api_key:
             raise ValueError(
-                "GEMINI_API_KEY is not set. Copy .env.example to .env and add a "
-                "free key from https://aistudio.google.com/apikey"
+                "No LLM provider key set. Add at least one free key to .env:\n"
+                "  GEMINI_API_KEY -> https://aistudio.google.com/apikey\n"
+                "  GROQ_API_KEY   -> https://console.groq.com/keys"
             )
         if not self.target_url:
             raise ValueError("TARGET_URL must not be empty.")
